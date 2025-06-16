@@ -101,12 +101,10 @@ class PusherNotifyEvent  implements ShouldBroadcast
 }
 
 
-
 7-create the function for get last notification for user :
 function getCurrenctNotification($receiver){
     return $receiver->notifications()->latest()->first();
 }
-
 
 8-create function for send all notification :
     public static function sendNotification()
