@@ -1,0 +1,125 @@
+1-create your application in the pusher :
+https://dashboard.pusher.com/
+
+2-composer require pusher/pusher-php-server
+
+3-add this 
+PUSHER_APP_ID=2008592
+PUSHER_APP_KEY=e3a45da1809ed9420c6e
+PUSHER_APP_SECRET=341607d890aed4e5d70c
+
+4-in config/broadcasting.php :
+'options' => [
+  'cluster' => 'eu',
+  'useTLS' => true
+],
+
+5-create your DB notification class with DB table :
+class UserNotification extends Notification
+{
+    use Queueable;
+    public $user,$title,$description;
+
+    /**
+     * Create a new notification instance.
+     *
+     * @return void
+     */
+    public function __construct($user,$title,$description)
+    {
+        $this->user  = $user;
+        $this->title = $title;
+        $this->description = $description;
+    }
+
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @param  mixed  $notifiable
+     * @return array
+     */
+    public function via($notifiable)
+    {
+        return ['database'];
+    }
+
+
+    /**
+     * Get the array representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return array
+     */
+    public function toArray($notifiable)
+    {
+        return [
+            "title"       => $this->title,
+            "description" => $this->description,
+            "user_id"     => $this->user->id
+        ];
+    }
+}
+
+
+6-add event for pusher proadcasting class :
+<?php
+
+namespace App\Modules\Notifications\app\Events;
+
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+
+class PusherNotifyEvent  implements ShouldBroadcast
+{
+    use InteractsWithSockets, SerializesModels;
+
+    public $title;
+    public $message;
+    public $receiver;
+    public $notifications;
+
+    public function __construct($receiver , string $title , string $message  ,$notifications=[])
+    {
+        $this->title   = $title;
+        $this->message  = $message;
+        $this->receiver = $receiver;
+        $this->notifications = $notifications;
+    }
+
+    public function broadcastOn()
+    {
+        $this->receiver = (object)$this->receiver;
+        return ['hearty-bunny-606-'.$this->receiver->id];
+    }
+
+    public function broadcastAs()
+    {
+        return "notification";
+    }
+}
+
+
+
+7-create the function for get last notification for user :
+function getCurrenctNotification($receiver){
+    return $receiver->notifications()->latest()->first();
+}
+
+
+8-create function for send all notification :
+    public static function sendNotification()
+    {
+        if (self::hasErrors()) return self::next();
+        $title = __("Request status has been changed");
+        $message = "your Request Status Has been Changed to " . self::$data['request_status'];
+        $employee = Employee::find(self::$empRequest->model_id);
+
+        if ($employee) {
+            $employee->notify(new UserNotification($employee, $title, $message));
+            $notification = getCurrenctNotification($employee);
+            event(new PusherNotifyEvent($employee->only(['id', 'name', 'email', 'is_active']), $title, $message, $notification));
+        }
+
+        return new self;
+    }
